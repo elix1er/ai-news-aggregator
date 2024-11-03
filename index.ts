@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * AI News Aggregator CLI
  * 
@@ -9,61 +7,88 @@
  */
 
 import Parser from 'rss-parser';
-import cheerio from 'cheerio';
-import { writeFile, mkdir, existsSync } from 'fs/promises';
+import * as cheerio from 'cheerio';
+
+import { writeFile, mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
-// Initialize RSS Parser
-const parser = new Parser();
+// Initialize RSS Parser with custom options
+const parser = new Parser({
+  customFields: {
+    item: ['title', 'description', 'link', 'pubDate']
+  }
+});
 
 // Define logging utility
 const log = {
-  info: (msg) => console.log(`[INFO] ${new Date().toISOString()} - ${msg}`),
-  error: (msg) => console.error(`[ERROR] ${new Date().toISOString()} - ${msg}`),
+  info: (msg: any) => console.log(`[INFO] ${new Date().toISOString()} - ${msg}`),
+  error: (msg: any) => console.error(`[ERROR] ${new Date().toISOString()} - ${msg}`),
 };
 
 // Directory to store MDX files
 const OUTPUT_DIR = 'ai_news_updates';
 
 // Function to sanitize filenames
-const sanitizeFilename = (filename) => {
+const sanitizeFilename = (filename: string) => {
   return filename.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 };
 
 // Fetch and parse RSS feeds
-const fetchRSS = async (url) => {
+const fetchRSS = async (url: string) => {
   log.info(`Fetching RSS from ${url}`);
   try {
-    const feed = await parser.parseURL(url);
-    const results = feed.entries.slice(0, 10).map(entry => {
-      const title = entry.title || 'No Title';
-      const description = entry.contentSnippet
-        ? entry.contentSnippet.slice(0, 200) + (entry.contentSnippet.length > 200 ? '...' : '')
-        : 'No Description';
-      const link = entry.link || url;
-      const pubDate = entry.pubDate ? new Date(entry.pubDate) : new Date();
-      return { title, description, link, pubDate };
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const xmlText = await response.text();
+    const feed = await parser.parseString(xmlText);
+    
+    // Handle different RSS feed structures
+    const items = feed.items || feed.entries || [];
+    const results = items.slice(0, 10).map((item: any) => {
+      return {
+        title: item.title || 'No Title',
+        description: item.description || item.contentSnippet || item.content || 'No Description',
+        link: item.link || url,
+        pubDate: item.pubDate ? new Date(item.pubDate) : new Date()
+      };
     });
-    return results;
-  } catch (error) {
+
+    // Clean up descriptions (remove HTML and limit length)
+    return results.map(item => ({
+      ...item,
+      description: item.description
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .slice(0, 200) + (item.description.length > 200 ? '...' : '')
+    }));
+  } catch (error: any) {
     log.error(`Error fetching RSS from ${url}: ${error.message}`);
     return [];
   }
 };
 
 // Scrape websites using selectors
-const scrapeWebsite = async (url, selectors) => {
+const scrapeWebsite = async (
+  url: string,
+  selectors: { article: string; title: string; description: string; link: string; }
+) => {
   log.info(`Scraping website ${url}`);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
     }
     const html = await response.text();
     const $ = cheerio.load(html);
-    const articles = selectors.article ? $(selectors.article).slice(0, 10) : [$.root()];
+    const articles = selectors.article ? $(selectors.article).slice(0, 10) : $.root();
 
-    const results = articles.map((_, elem) => {
+    const results = articles.map((_: any, elem: any) => {
       const element = $(elem);
       const title = selectors.title ? element.find(selectors.title).text().trim() : 'No Title';
       let description = selectors.description
@@ -73,7 +98,7 @@ const scrapeWebsite = async (url, selectors) => {
         description = description.slice(0, 200) + '...';
       }
       let link = selectors.link ? element.find(selectors.link).attr('href') : url;
-      if (link && !link.startsWith('http')) {
+      if (link && typeof link === 'string' && !link.startsWith('http')) {
         link = new URL(link, url).href;
       }
       const pubDate = new Date(); // Scraped content may not have a publication date
@@ -81,16 +106,16 @@ const scrapeWebsite = async (url, selectors) => {
     }).get();
 
     return results;
-  } catch (error) {
+  } catch (error: any) {
     log.error(`Error scraping website ${url}: ${error.message}`);
     return [];
   }
 };
 
 // Check if content is relevant based on keywords
-const isRelevant = (text, keywords) => {
+const isRelevant = (text: string, keywords: any[]) => {
   const lowerText = text.toLowerCase();
-  return keywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
+  return keywords.some((keyword: string) => lowerText.includes(keyword.toLowerCase()));
 };
 
 // Main function to aggregate news
@@ -102,7 +127,7 @@ const main = async () => {
     try {
       await mkdir(OUTPUT_DIR, { recursive: true });
       log.info(`Created directory: ${OUTPUT_DIR}`);
-    } catch (error) {
+    } catch (error: any) {
       log.error(`Failed to create directory ${OUTPUT_DIR}: ${error.message}`);
       return;
     }
@@ -163,21 +188,21 @@ const main = async () => {
   ];
 
   // Collect all news items
-  let allNews = [];
+  let allNews: any[] = [];
 
   // Process each source
   for (const source of sources) {
     log.info(`Processing source: ${source.url}`);
 
-    let content = [];
+    let content: any[] = [];
     if (source.type === 'rss') {
       content = await fetchRSS(source.url);
-    } else if (source.type === 'scrape') {
+    } else if (source.type === 'scrape' && source.selectors) {
       content = await scrapeWebsite(source.url, source.selectors);
     }
 
     // Filter content based on relevance
-    const relevantContent = content.filter(item => isRelevant(`${item.title} ${item.description}`, keywords));
+    const relevantContent = content.filter((item: { title: any; description: any; }) => isRelevant(`${item.title} ${item.description}`, keywords));
 
     if (relevantContent.length === 0) {
       log.info(`No relevant content found for source: ${source.url}`);
@@ -213,7 +238,7 @@ link: "${link}"
     try {
       await writeFile(filePath, frontmatter + contentBody, 'utf-8');
       log.info(`Written: ${filePath}`);
-    } catch (error) {
+    } catch (error: any) {
       log.error(`Failed to write file ${filePath}: ${error.message}`);
     }
   }
@@ -222,7 +247,7 @@ link: "${link}"
 };
 
 // Execute the main function
-main().catch(error => {
+main().catch((error: any) => {
   log.error(`An unexpected error occurred: ${error.message}`);
-  Bun.exit(1);
+  process.exit(1);
 });
