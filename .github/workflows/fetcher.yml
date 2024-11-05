@@ -1,5 +1,3 @@
-Here's the rewritten workflow to work with Bun inside GitHub Actions:
-
 name: Bun Index Workflow
 
 on:
