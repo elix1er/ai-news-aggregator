@@ -1,3 +1,7 @@
+Here's the rewritten workflow to work with Bun inside GitHub Actions:
+
+name: Bun Index Workflow
+
 on:
   schedule:
     - cron: "0 */12 * * *"
@@ -6,15 +10,22 @@ on:
 jobs:
   run-index:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Setup Bun
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: bun
 
-      - name: Install Bun
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          echo 'export BUN_INSTALL="$HOME/.bun"' >> $GITHUB_ENV
-          echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> $GITHUB_ENV
+    - name: Install Bun
+      run: |
+        npm install -g bun
+        echo "BUN_INSTALL=$HOME/.bun" >> $GITHUB_OUTPUT
+        echo "$BUN_INSTALL/bin" >> $GITHUB_PATH
 
-      - name: Run index.ts
-        run: bun run index.ts
+    - name: Run index.ts
+      run: bun run index.ts
