@@ -12,12 +12,19 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-      
-    - name: Setup Bun
+
+    - name: Setup cache for Bun
+      uses: actions/cache@v3
+      with:
+        path: ~/.bun
+        key: ${{ runner.os }}-bun-cache
+        restore-keys: |
+          ${{ runner.os }}-bun-cache
+
+    - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: 18
-        cache: bun
+        node-version: 20
 
     - name: Install Bun
       run: |
