@@ -1,4 +1,4 @@
-name: Bun Index Workflow
+name: AI News Agent Workflow
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-index:
+  run-ai-news-agent:
     runs-on: ubuntu-latest
     
     steps:
@@ -33,5 +33,41 @@ jobs:
         echo "$BUN_INSTALL/bin" >> $GITHUB_PATH
         bun i
 
-    - name: Run the news aggregator spider
+    - name: Run AI News Agent
       run: bun run index.ts
+
+    - name: Check for changes
+      id: check_changes
+      run: |
+        git status --porcelain
+        if [[ -n $(git status --porcelain) ]]; then
+          echo "changes_exist=true" >> $GITHUB_OUTPUT
+        else
+          echo "changes_exist=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create new branch and commit changes
+      if: steps.check_changes.outputs.changes_exist == 'true'
+      run: |
+        timestamp=$(date +"%Y%m%d-%H%M%S")
+        branch_name="ai-news-update-$timestamp"
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git checkout -b $branch_name
+        git add .
+        git commit -m "AI News Agent Data Update: $timestamp"
+        git push origin $branch_name
+
+    - name: Create Pull Request
+      if: steps.check_changes.outputs.changes_exist == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: AI News Agent Data Update
+        committer: GitHub Actions <actions@github.com>
+        author: GitHub Actions <actions@github.com>
+        branch: ${{ steps.create_branch.outputs.branch }}
+        delete-branch: true
+        title: 'AI News Agent: Automated Data Update'
+        body: 'Automated data collection and update from the AI News Agent'
+        base: main
