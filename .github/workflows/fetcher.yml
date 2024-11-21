@@ -31,6 +31,7 @@ jobs:
         npm install -g bun
         echo "BUN_INSTALL=$HOME/.bun" >> $GITHUB_OUTPUT
         echo "$BUN_INSTALL/bin" >> $GITHUB_PATH
+        bun i
 
-    - name: Run index.ts
+    - name: Run the news aggregator spider
       run: bun run index.ts
