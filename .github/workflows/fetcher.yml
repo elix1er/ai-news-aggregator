@@ -1,3 +1,4 @@
+
 name: AI News Agent Workflow
 
 on:
@@ -5,16 +6,23 @@ on:
     - cron: "0 */12 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write  # Gives the workflow write access to the repository
+  pull-requests: write  # Allows creating pull requests
+
 jobs:
   run-ai-news-agent:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4  # Updated to latest version
+      with:
+        # No additional token needed - uses GITHUB_TOKEN by default
+        fetch-depth: 0  # Fetches full history for all branches and tags
 
     - name: Setup cache for Bun
-      uses: actions/cache@v3
+      uses: actions/cache@v4  # Updated to latest version
       with:
         path: ~/.bun
         key: ${{ runner.os }}-bun-cache
@@ -22,7 +30,7 @@ jobs:
           ${{ runner.os }}-bun-cache
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4  # Updated to latest version
       with:
         node-version: 20
 
@@ -39,35 +47,39 @@ jobs:
     - name: Check for changes
       id: check_changes
       run: |
-        git status --porcelain
-        if [[ -n $(git status --porcelain) ]]; then
+        changes=$(git status --porcelain)
+        echo "Changes detected:"
+        echo "$changes"
+        if [[ -n "$changes" ]]; then
           echo "changes_exist=true" >> $GITHUB_OUTPUT
         else
           echo "changes_exist=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Create new branch and commit changes
+    - name: Create Pull Request
       if: steps.check_changes.outputs.changes_exist == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}  # Uses the built-in GITHUB_TOKEN
       run: |
         timestamp=$(date +"%Y%m%d-%H%M%S")
         branch_name="ai-news-update-$timestamp"
-        git config --global user.name 'GitHub Actions'
-        git config --global user.email 'actions@github.com'
-        git checkout -b $branch_name
+        
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # Create and push new branch
+        git checkout -b "$branch_name"
         git add .
         git commit -m "AI News Agent Data Update: $timestamp"
-        git push origin $branch_name
+        git push -u origin "$branch_name"
+        
+        # Create Pull Request using GitHub CLI
+        gh pr create \
+          --base main \
+          --head "$branch_name" \
+          --title "AI News Agent: Automated Data Update" \
+          --body "Automated data collection and update from the AI News Agent
 
-    - name: Create Pull Request
-      if: steps.check_changes.outputs.changes_exist == 'true'
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        commit-message: AI News Agent Data Update
-        committer: GitHub Actions <actions@github.com>
-        author: GitHub Actions <actions@github.com>
-        branch: ${{ steps.create_branch.outputs.branch }}
-        delete-branch: true
-        title: 'AI News Agent: Automated Data Update'
-        body: 'Automated data collection and update from the AI News Agent'
-        base: main
+Changes detected in this update:
+$( git diff --stat HEAD^ | tr '\n' '\r' )"
