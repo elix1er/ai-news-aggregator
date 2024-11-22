@@ -1,6 +1,5 @@
 
 name: AI News Agent Workflow
-
 on:
   schedule:
     - cron: "0 */12 * * *"
@@ -80,6 +79,3 @@ jobs:
           --head "$branch_name" \
           --title "AI News Agent: Automated Data Update" \
           --body "Automated data collection and update from the AI News Agent
-
-Changes detected in this update:
-$( git diff --stat HEAD^ | tr '\n' '\r' )"
