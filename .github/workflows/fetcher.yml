@@ -1,81 +1,47 @@
-
 name: AI News Agent Workflow
 on:
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write  # Gives the workflow write access to the repository
-  pull-requests: write  # Allows creating pull requests
+  contents: write
 
 jobs:
-  run-ai-news-agent:
+  fetch:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4  # Updated to latest version
-      with:
-        # No additional token needed - uses GITHUB_TOKEN by default
-        fetch-depth: 0  # Fetches full history for all branches and tags
+      - uses: actions/checkout@v4
+        with:
+          ref: main # Explicitly checkout main branch
 
-    - name: Setup cache for Bun
-      uses: actions/cache@v4  # Updated to latest version
-      with:
-        path: ~/.bun
-        key: ${{ runner.os }}-bun-cache
-        restore-keys: |
-          ${{ runner.os }}-bun-cache
+      - name: Setup cache for Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun
+          key: ${{ runner.os }}-bun-cache
+          restore-keys: |
+            ${{ runner.os }}-bun-cache
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4  # Updated to latest version
-      with:
-        node-version: 20
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: Install Bun
-      run: |
-        npm install -g bun
-        echo "BUN_INSTALL=$HOME/.bun" >> $GITHUB_OUTPUT
-        echo "$BUN_INSTALL/bin" >> $GITHUB_PATH
-        bun i
+      - name: Install Bun
+        run: |
+          npm install -g bun
+          echo "BUN_INSTALL=$HOME/.bun" >> $GITHUB_OUTPUT
+          echo "$BUN_INSTALL/bin" >> $GITHUB_PATH
+          bun i
 
-    - name: Run AI News Agent
-      run: bun run index.ts
+      - name: Run AI News Agent
+        run: bun run index.ts
 
-    - name: Check for changes
-      id: check_changes
-      run: |
-        changes=$(git status --porcelain)
-        echo "Changes detected:"
-        echo "$changes"
-        if [[ -n "$changes" ]]; then
-          echo "changes_exist=true" >> $GITHUB_OUTPUT
-        else
-          echo "changes_exist=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Create Pull Request
-      if: steps.check_changes.outputs.changes_exist == 'true'
-      env:
-        GH_TOKEN: ${{ github.token }}  # Uses the built-in GITHUB_TOKEN
-      run: |
-        timestamp=$(date +"%Y%m%d-%H%M%S")
-        branch_name="ai-news-update-$timestamp"
-        
-        # Configure git
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        
-        # Create and push new branch
-        git checkout -b "$branch_name"
-        git add .
-        git commit -m "AI News Agent Data Update: $timestamp"
-        git push -u origin "$branch_name"
-        
-        # Create Pull Request using GitHub CLI
-        gh pr create \
-          --base main \
-          --head "$branch_name" \
-          --title "AI News Agent: Automated Data Update" \
-          --body "Automated data collection and update from the AI News Agent
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .
+          git commit -m "GitCronAI News Agent" || echo "No changes to commit"
+          git push origin main
